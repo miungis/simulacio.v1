@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación Ultrasónica: Brasier Inteligente</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #eef2f7;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        #container {
+            display: flex;
+            gap: 30px;
+            max-width: 1400px; 
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        #control-panel {
+            width: 250px;
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 8px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+            height: fit-content;
+        }
+
+        #control-panel h2 {
+            color: #3a753d;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        #frequency-value {
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        #simulation-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #visual-wrapper {
+            position: relative;
+            width: 700px; 
+            height: 600px;
+            margin: 0 auto 20px;
+        }
+        
+        #base-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #dynamic-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2; 
+        }
+
+        #graph-container {
+            width: 100%;
+            max-width: 600px; 
+            height: 300px;
+            border: 1px solid #ccc;
+            background-color: #2c3e50;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1> Simulación: Brasier Inteligente y Nanosensores Ultrasónicos </h1>
+
+    <div id="container">
+        
+        <div id="control-panel">
+            <h2>Controles de Simulación</h2>
+            
+            <label for="frequency-slider">Frecuencia Ultrasónica (MHz):</label>
+            <input type="range" id="frequency-slider" min="5" max="50" step="1" value="20">
+            <p>Valor actual: <span id="frequency-value">20</span> MHz</p>
+
+            <p style="font-size: 0.8em; margin-top: 20px;">
+                **Baja Frecuencia (5 MHz):** Mayor penetración, menor resolución.<br>
+                **Alta Frecuencia (50 MHz):** Menor penetración, mayor resolución, pico de detección más nítido.
+            </p>
+        </div>
+
+        <div id="simulation-area">
+            
+            <div id="visual-wrapper">
+                <img id="base-image" 
+                     src="bra_final.png" 
+                     alt="Simulación de detección ultrasónica">
+                
+                <canvas id="dynamic-canvas" width="700" height="600"></canvas>
+            </div>
+            
+            <div id="graph-container">
+                <canvas id="ultrasound-graph"></canvas>
+            </div>
+            
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('dynamic-canvas');
+            const ctx = canvas.getContext('2d');
+            const slider = document.getElementById('frequency-slider');
+            const frequencyValueSpan = document.getElementById('frequency-value');
+            
+            // Coordenadas aproximadas para los efectos visuales sobre tu imagen:
+            // Basadas en la posición de los sensores y el microtumor de tu imagen
+            const sensor = { x: 160, y: 360 }; 
+            const tumor = { x: 470, y: 360, r: 25 }; 
+            
+            let currentFrequency = parseFloat(slider.value);
+            let frame = 0; 
+
+            // --- CANVAS DE SIMULACIÓN VISUAL (Capas de Efecto) ---
+
+            function drawDynamicEffects(freq) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                frame++;
+                
+                let attenuation = (freq - 5) / 45; 
+                let waveBaseColor = 100 + attenuation * 100; 
+                let waveColor = `rgba(${waveBaseColor}, ${waveBaseColor}, 255, ${1 - attenuation * 0.5})`; 
+
+                // 1. Dibuja las Ondas Ultrasónicas
+                const numWaves = 10;
+                for (let i = 1; i <= numWaves; i++) {
+                    let radius = 45 + (i * 35) + (frame % 40); 
+                    
+                    if (radius > 400 * (1 - attenuation * 0.4)) continue; 
+                    
+                    ctx.strokeStyle = waveColor;
+                    ctx.lineWidth = 1 + (1 - attenuation) * 2; 
+                    ctx.beginPath();
+                    
+                    ctx.arc(sensor.x, sensor.y, radius, -Math.PI / 4, Math.PI / 4);
+                    ctx.stroke();
+                }
+
+                // 2. Simulación de Eco del Tumor
+                if (freq >= 10) { 
+                    let echoStrength = (freq - 10) / 40;
+                    let echoColor = `rgba(255, 100, 0, ${echoStrength})`; 
+                    
+                    ctx.strokeStyle = echoColor;
+                    ctx.lineWidth = 3 + (freq / 50) * 3;
+                    
+                    ctx.beginPath();
+                    ctx.arc(tumor.x, tumor.y, tumor.r + 5, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            
+            function animate() {
+                drawDynamicEffects(currentFrequency);
+                requestAnimationFrame(animate);
+            }
+            animate(); 
+
+            // --- GRÁFICA DE SEÑAL (CHART.JS) ---
+
+            const ctxGraph = document.getElementById('ultrasound-graph').getContext('2d');
+            let signalChart;
+
+            function generateSignalData(freq) {
+                const data = [];
+                const tumorTime = 40; 
+                const signalAmp = 8 + (50 - freq) / 10; 
+
+                for (let t = 0; t <= 100; t += 2) {
+                    let amplitude = signalAmp + Math.random() * 2; 
+
+                    if (t >= tumorTime - 4 && t <= tumorTime + 4) {
+                        const clarityFactor = freq / 15; 
+                        const tumorEffect = (4 - Math.abs(t - tumorTime)) * clarityFactor;
+                        amplitude += tumorEffect;
+                    }
+                    data.push({ x: t, y: amplitude });
+                }
+                return data;
+            }
+
+            function generateReferenceData(freq) {
+                const data = [];
+                const signalAmp = 8 + (50 - freq) / 10;
+
+                for (let t = 0; t <= 100; t += 2) {
+                    data.push({ x: t, y: signalAmp + Math.random() * 2 }); 
+                }
+                return data;
+            }
+
+            function updateChart(freq) {
+                const detectionClarity = (freq / 50) * 100; 
+
+                if (signalChart) {
+                    signalChart.data.datasets[0].data = generateSignalData(freq);
+                    signalChart.data.datasets[1].data = generateReferenceData(freq);
+                    
+                    signalChart.options.plugins.title.text = `Detección de Eco Ultrasónico | Claridad de Pico: ${Math.round(detectionClarity)}%`;
+                    signalChart.update();
+                } else {
+                    signalChart = new Chart(ctxGraph, {
+                        type: 'line',
+                        data: {
+                            datasets: [{
+                                label: 'Señal con Tumor (Eco)',
+                                data: generateSignalData(freq),
+                                borderColor: '#ff6384', 
+                                borderWidth: 3,
+                                fill: false,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Tejido Sano (Referencia)',
+                                data: generateReferenceData(freq),
+                                borderColor: '#4bc0c0', 
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                fill: false,
+                                pointRadius: 0
+                            }]
+                        },
+                        options: {
+                            animation: false,
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    title: { display: true, text: 'Tiempo de Retardo (ns)', color: '#ecf0f1' },
+                                    ticks: { color: '#ecf0f1' },
+                                    grid: { color: 'rgba(236, 240, 241, 0.2)' }
+                                },
+                                y: {
+                                    title: { display: true, text: 'Amplitud de la Señal (mV)', color: '#ecf0f1' },
+                                    min: 0,
+                                    max: 25,
+                                    ticks: { color: '#ecf0f1' },
+                                    grid: { color: 'rgba(236, 240, 241, 0.2)' }
+                                }
+                            },
+                            plugins: {
+                                legend: { labels: { color: '#ecf0f1' } },
+                                title: {
+                                    display: true,
+                                    text: `Detección de Eco Ultrasónico | Claridad de Pico: ${Math.round(detectionClarity)}%`,
+                                    color: '#ecf0f1',
+                                    font: { size: 20 }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // --- MANEJO DE EVENTOS Y ACTUALIZACIÓN ---
+
+            function handleFrequencyChange() {
+                currentFrequency = parseFloat(slider.value);
+                frequencyValueSpan.textContent = currentFrequency;
+                
+                updateChart(currentFrequency);
+            }
+
+            slider.addEventListener('input', handleFrequencyChange);
+
+            // Inicializar la simulación
+            handleFrequencyChange();
+        });
+    </script>
+</body>
+</html>
